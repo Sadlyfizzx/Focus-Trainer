@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroSpeed Trainer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* Custom Animations */
+        @keyframes pop-in {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        .animate-pop-in {
+            animation: pop-in 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.2s ease-in-out;
+        }
+
+        /* Utility to hide/show views */
+        .view-section { display: none; height: 100%; width: 100%; }
+        .view-section.active { display: flex; }
+        
+        /* Prevent text selection during rapid clicking */
+        body { user-select: none; -webkit-user-select: none; }
+    </style>
+</head>
+<body class="bg-zinc-950 text-zinc-100 font-sans overflow-hidden h-screen w-screen">
+
+    <!-- App Container -->
+    <div id="app" class="h-full w-full relative">
+        
+        <!-- HEADER (Menu Only) -->
+        <header id="main-header" class="absolute top-0 left-0 w-full p-6 border-b border-zinc-800 bg-zinc-950 z-10 hidden">
+            <h1 class="text-2xl font-black tracking-tighter flex items-center gap-2">
+                <i data-lucide="activity" class="text-emerald-500"></i>
+                NEURO<span class="text-emerald-500">SPEED</span>
+            </h1>
+        </header>
+
+        <!-- BACK BUTTON (Drills Only) -->
+        <button id="back-btn" onclick="App.setView('menu')" class="absolute top-4 left-4 z-50 p-2 bg-black/20 backdrop-blur-sm rounded-full text-white/50 hover:text-white hover:bg-black/40 transition-all hidden">
+            <i data-lucide="chevron-left" class="w-6 h-6"></i>
+        </button>
+
+        <!-- MENU VIEW -->
+        <div id="view-menu" class="view-section flex-col pt-24 px-4 overflow-y-auto">
+            <div class="max-w-2xl mx-auto w-full space-y-6 pb-8">
+                <!-- Drill Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Cards injected by JS -->
+                </div>
+
+                <!-- Stats Dashboard -->
+                <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl">
+                    <div class="flex items-center gap-2 mb-4 text-zinc-400 uppercase text-xs font-bold tracking-wider">
+                        <i data-lucide="trophy" class="w-4 h-4"></i> Recent Performance
+                    </div>
+                    <div id="stats-container" class="space-y-3">
+                        <!-- Stats injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REACTION DRILL -->
+        <div id="view-reaction" class="view-section flex-col items-center justify-center bg-zinc-900 transition-colors duration-100 cursor-pointer" onmousedown="GameReaction.handleClick()" ontouchstart="GameReaction.handleClick()">
+            <div id="reaction-content" class="text-center pointer-events-none">
+                <!-- Content injected by JS -->
+            </div>
+        </div>
+
+        <!-- SCHULTE DRILL -->
+        <div id="view-schulte" class="view-section flex-col items-center justify-center p-4">
+            <div class="mb-6 flex justify-between w-full max-w-md items-center">
+                <div class="text-zinc-400">Next: <span id="schulte-next" class="text-white font-bold text-xl">1</span></div>
+                <div id="schulte-timer" class="text-xl font-mono text-emerald-400">0.0s</div>
+            </div>
+            <div id="schulte-grid" class="grid grid-cols-5 gap-2 w-full max-w-md aspect-square">
+                <!-- Grid injected by JS -->
+            </div>
+            <div id="schulte-result" class="hidden flex-col items-center gap-4"></div>
+        </div>
+
+        <!-- STROOP DRILL -->
+        <div id="view-stroop" class="view-section flex-col items-center justify-center p-6 max-w-lg mx-auto w-full">
+            <div class="w-full flex justify-between mb-12 text-2xl font-bold">
+                <div class="text-white">Score: <span id="stroop-score">0</span></div>
+                <div id="stroop-timer" class="text-zinc-400">30s</div>
+            </div>
+            
+            <div class="flex-grow flex items-center justify-center mb-12">
+                <h1 id="stroop-word" class="text-6xl md:text-8xl font-black tracking-wider transition-all">WORD</h1>
+            </div>
+
+            <div id="stroop-controls" class="grid grid-cols-2 gap-6 w-full">
+                <button onclick="GameStroop.handleAnswer(false)" class="h-24 text-xl bg-rose-500 hover:bg-rose-400 text-white shadow-[0_4px_0_rgb(159,18,57)] active:translate-y-[4px] active:shadow-none rounded-xl font-bold">Mismatch</button>
+                <button onclick="GameStroop.handleAnswer(true)" class="h-24 text-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_4px_0_rgb(6,95,70)] active:translate-y-[4px] active:shadow-none rounded-xl font-bold">Match</button>
+            </div>
+            
+            <p class="mt-8 text-zinc-500 text-sm text-center">Does the TEXT match the COLOR?</p>
+            <div id="stroop-result" class="hidden flex-col items-center gap-4"></div>
+        </div>
+
+        <!-- BURST DRILL -->
+        <div id="view-burst" class="view-section relative bg-zinc-900 overflow-hidden touch-none">
+            <div class="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-10">
+                <span class="text-2xl font-bold text-white">Score: <span id="burst-score">0</span></span>
+                <span class="text-2xl font-bold text-zinc-400"><span id="burst-timer">20</span>s</span>
+            </div>
+            <div id="burst-field" class="w-full h-full relative">
+                <!-- Targets injected by JS -->
+            </div>
+            <div id="burst-result" class="hidden absolute inset-0 z-50 bg-zinc-950/90 flex-col items-center justify-center gap-4"></div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- GLOBAL APP STATE ---
+        const App = {
+            view: 'menu',
+            stats: {
+                reaction: [],
+                schulte: [],
+                stroop: [],
+                burst: []
+            },
+
+            init: () => {
+                App.renderMenuDrills();
+                App.updateStatsDisplay();
+                App.setView('menu');
+                lucide.createIcons();
+            },
+
+            setView: (viewId) => {
+                // Cleanup current view
+                if (App.view === 'reaction') GameReaction.cleanup();
+                if (App.view === 'schulte') GameSchulte.cleanup();
+                if (App.view === 'stroop') GameStroop.cleanup();
+                if (App.view === 'burst') GameBurst.cleanup();
+
+                // State update
+                App.view = viewId;
+
+                // UI Toggle
+                document.querySelectorAll('.view-section').forEach(el => {
+                    el.classList.remove('active');
+                    if(el.id === `view-${viewId}`) el.classList.add('active');
+                });
+
+                // Header / Back Button Logic
+                const header = document.getElementById('main-header');
+                const backBtn = document.getElementById('back-btn');
+                
+                if (viewId === 'menu') {
+                    header.classList.remove('hidden');
+                    backBtn.classList.add('hidden');
+                    App.updateStatsDisplay(); // Refresh stats on return
+                } else {
+                    header.classList.add('hidden');
+                    backBtn.classList.remove('hidden');
+                    
+                    // Initialize specific games
+                    if (viewId === 'reaction') GameReaction.init();
+                    if (viewId === 'schulte') GameSchulte.init();
+                    if (viewId === 'stroop') GameStroop.init();
+                    if (viewId === 'burst') GameBurst.init();
+                }
+                
+                lucide.createIcons();
+            },
+
+            saveStat: (game, value) => {
+                App.stats[game].unshift(value);
+                App.stats[game] = App.stats[game].slice(0, 5); // Keep last 5
+                App.setView('menu');
+            },
+
+            // --- Menu Renders ---
+            renderMenuDrills: () => {
+                const drills = [
+                    { id: 'reaction', title: 'Reflex', icon: 'zap', color: 'text-yellow-400', desc: 'Click on green.' },
+                    { id: 'schulte', title: 'Grid', icon: 'grid-3x3', color: 'text-blue-400', desc: 'Order 1-25.' },
+                    { id: 'stroop', title: 'Focus', icon: 'eye', color: 'text-emerald-400', desc: 'Color vs Text.' },
+                    { id: 'burst', title: 'Burst', icon: 'activity', color: 'text-rose-400', desc: 'Hit targets.' },
+                ];
+                
+                const container = document.querySelector('#view-menu .grid');
+                container.innerHTML = drills.map(d => `
+                    <button onclick="App.setView('${d.id}')" class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl text-left hover:border-emerald-500/50 hover:bg-zinc-800 transition-all group active:scale-95">
+                        <i data-lucide="${d.icon}" class="w-8 h-8 ${d.color} mb-4 group-hover:scale-110 transition-transform"></i>
+                        <h3 class="text-xl font-bold text-white mb-1">${d.title}</h3>
+                        <p class="text-sm text-zinc-500">${d.desc}</p>
+                    </button>
+                `).join('');
+            },
+
+            updateStatsDisplay: () => {
+                const s = App.stats;
+                const format = (arr, suffix = '', div = 1) => arr.length ? (Math.min(...arr)/div).toFixed(arr.length ? 2 : 0).replace('.00','') + suffix : '--';
+                const formatMax = (arr) => arr.length ? Math.max(...arr) : '--';
+
+                document.getElementById('stats-container').innerHTML = `
+                    <div class="flex justify-between text-sm"><span>Reflex (Best)</span><span class="font-mono text-white">${format(s.reaction, 'ms')}</span></div>
+                    <div class="flex justify-between text-sm"><span>Grid Speed (Best)</span><span class="font-mono text-white">${format(s.schulte, 's', 1000)}</span></div>
+                    <div class="flex justify-between text-sm"><span>Focus Score</span><span class="font-mono text-white">${formatMax(s.stroop)}</span></div>
+                    <div class="flex justify-between text-sm"><span>Burst Hits</span><span class="font-mono text-white">${formatMax(s.burst)}</span></div>
+                `;
+            }
+        };
+
+        // --- 1. REACTION GAME ---
+        const GameReaction = {
+            state: 'waiting', // waiting, ready, clicked, too-early
+            timer: null,
+            startTime: 0,
+
+            init: () => {
+                GameReaction.startRound();
+            },
+
+            cleanup: () => {
+                clearTimeout(GameReaction.timer);
+            },
+
+            render: (content) => {
+                document.getElementById('reaction-content').innerHTML = content;
+            },
+
+            setBackground: (cls) => {
+                const el = document.getElementById('view-reaction');
+                el.className = `view-section active flex-col items-center justify-center cursor-pointer select-none transition-colors duration-100 ${cls}`;
+            },
+
+            startRound: () => {
+                GameReaction.state = 'waiting';
+                GameReaction.setBackground('bg-zinc-900');
+                GameReaction.render('<h2 class="text-4xl font-bold text-zinc-500">Wait for Green...</h2>');
+                
+                const delay = 2000 + Math.random() * 3000;
+                GameReaction.timer = setTimeout(() => {
+                    GameReaction.state = 'ready';
+                    GameReaction.startTime = Date.now();
+                    GameReaction.setBackground('bg-emerald-500');
+                    GameReaction.render('<h2 class="text-6xl font-black text-zinc-950">CLICK!</h2>');
+                }, delay);
+            },
+
+            handleClick: () => {
+                if (GameReaction.state === 'waiting') {
+                    clearTimeout(GameReaction.timer);
+                    GameReaction.state = 'too-early';
+                    GameReaction.setBackground('bg-rose-900');
+                    GameReaction.render(`
+                        <div class="animate-shake">
+                            <h2 class="text-4xl font-bold text-white mb-4">Too Early!</h2>
+                            <div class="pointer-events-auto">
+                                <button onclick="event.stopPropagation(); GameReaction.startRound()" class="px-6 py-3 rounded-xl font-bold bg-zinc-700 hover:bg-zinc-600 text-white shadow-[0_4px_0_rgb(39,39,42)] active:translate-y-[4px] active:shadow-none">Try Again</button>
+                            </div>
+                        </div>
+                    `);
+                } else if (GameReaction.state === 'ready') {
+                    const time = Date.now() - GameReaction.startTime;
+                    GameReaction.state = 'clicked';
+                    GameReaction.setBackground('bg-zinc-800');
+                    GameReaction.render(`
+                        <div>
+                            <h2 class="text-6xl font-black text-white mb-2">${time} ms</h2>
+                            <p class="text-zinc-400 mb-8">Reaction Time</p>
+                            <div class="flex gap-4 justify-center pointer-events-auto">
+                                <button onclick="event.stopPropagation(); GameReaction.startRound()" class="px-6 py-3 rounded-xl font-bold bg-zinc-700 hover:bg-zinc-600 text-white shadow-[0_4px_0_rgb(39,39,42)] active:translate-y-[4px] active:shadow-none">Again</button>
+                                <button onclick="event.stopPropagation(); App.saveStat('reaction', ${time})" class="px-6 py-3 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_4px_0_rgb(6,95,70)] active:translate-y-[4px] active:shadow-none">Finish</button>
+                            </div>
+                        </div>
+                    `);
+                }
+            }
+        };
+
+        // --- 2. SCHULTE GRID ---
+        const GameSchulte = {
+            numbers: [],
+            nextExpected: 1,
+            startTime: 0,
+            timerInterval: null,
+            finished: false,
+
+            init: () => {
+                GameSchulte.finished = false;
+                GameSchulte.nextExpected = 1;
+                document.getElementById('schulte-next').innerText = '1';
+                document.getElementById('schulte-grid').classList.remove('hidden');
+                document.getElementById('schulte-result').classList.add('hidden');
+                document.getElementById('schulte-result').classList.remove('flex');
+
+                // Shuffle numbers 1-25
+                GameSchulte.numbers = Array.from({length: 25}, (_, i) => i + 1)
+                    .sort(() => Math.random() - 0.5);
+
+                // Render Grid
+                const grid = document.getElementById('schulte-grid');
+                grid.innerHTML = GameSchulte.numbers.map(num => `
+                    <button onmousedown="GameSchulte.handleTap(this, ${num})" 
+                        class="schulte-btn rounded-lg text-xl md:text-2xl font-bold flex items-center justify-center transition-all duration-75 bg-zinc-700 hover:bg-zinc-600 text-white shadow-[0_4px_0_rgb(39,39,42)] active:translate-y-[2px] active:shadow-none h-full w-full">
+                        ${num}
+                    </button>
+                `).join('');
+
+                // Start Timer
+                GameSchulte.startTime = Date.now();
+                GameSchulte.timerInterval = setInterval(() => {
+                    const elapsed = (Date.now() - GameSchulte.startTime) / 1000;
+                    document.getElementById('schulte-timer').innerText = elapsed.toFixed(1) + 's';
+                }, 50);
+            },
+
+            cleanup: () => {
+                clearInterval(GameSchulte.timerInterval);
+            },
+
+            handleTap: (btn, num) => {
+                if (GameSchulte.finished) return;
+
+                if (num === GameSchulte.nextExpected) {
+                    // Correct
+                    btn.className = "rounded-lg text-xl md:text-2xl font-bold flex items-center justify-center transition-all duration-75 bg-zinc-800 text-zinc-600 opacity-50 h-full w-full pointer-events-none";
+                    
+                    if (num === 25) {
+                        GameSchulte.finish();
+                    } else {
+                        GameSchulte.nextExpected++;
+                        document.getElementById('schulte-next').innerText = GameSchulte.nextExpected;
+                    }
+                } else {
+                    // Wrong - Shake animation
+                    btn.classList.add('bg-rose-500');
+                    setTimeout(() => btn.classList.remove('bg-rose-500'), 200);
+                }
+            },
+
+            finish: () => {
+                GameSchulte.finished = true;
+                clearInterval(GameSchulte.timerInterval);
+                const finalTime = Date.now() - GameSchulte.startTime;
+
+                document.getElementById('schulte-grid').classList.add('hidden');
+                const resDiv = document.getElementById('schulte-result');
+                resDiv.classList.remove('hidden');
+                resDiv.classList.add('flex');
+                
+                resDiv.innerHTML = `
+                    <h2 class="text-4xl font-bold text-white">Grid Cleared!</h2>
+                    <div class="text-6xl font-black text-emerald-400">${(finalTime/1000).toFixed(2)}s</div>
+                    <button onclick="App.saveStat('schulte', ${finalTime})" class="px-6 py-3 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_4px_0_rgb(6,95,70)] active:translate-y-[4px] active:shadow-none">Done</button>
+                `;
+            }
+        };
+
+        // --- 3. STROOP GAME ---
+        const GameStroop = {
+            score: 0,
+            timeLeft: 30,
+            timer: null,
+            current: {},
+            colors: [
+                { name: 'RED', class: 'text-rose-500' },
+                { name: 'BLUE', class: 'text-blue-500' },
+                { name: 'GREEN', class: 'text-emerald-500' },
+                { name: 'YELLOW', class: 'text-yellow-400' },
+            ],
+
+            init: () => {
+                GameStroop.score = 0;
+                GameStroop.timeLeft = 30;
+                document.getElementById('stroop-score').innerText = '0';
+                document.getElementById('stroop-timer').innerText = '30s';
+                document.getElementById('stroop-controls').classList.remove('hidden');
+                document.getElementById('stroop-word').classList.remove('hidden');
+                document.getElementById('stroop-result').classList.add('hidden');
+                document.getElementById('stroop-result').classList.remove('flex');
+                
+                GameStroop.nextRound();
+                
+                GameStroop.timer = setInterval(() => {
+                    GameStroop.timeLeft--;
+                    const timerEl = document.getElementById('stroop-timer');
+                    timerEl.innerText = GameStroop.timeLeft + 's';
+                    
+                    if (GameStroop.timeLeft <= 5) timerEl.classList.add('text-rose-500', 'animate-pulse');
+                    else timerEl.classList.remove('text-rose-500', 'animate-pulse');
+
+                    if (GameStroop.timeLeft <= 0) GameStroop.finish();
+                }, 1000);
+            },
+
+            cleanup: () => {
+                clearInterval(GameStroop.timer);
+            },
+
+            nextRound: () => {
+                const textIdx = Math.floor(Math.random() * GameStroop.colors.length);
+                const colorIdx = Math.random() > 0.5 ? textIdx : Math.floor(Math.random() * GameStroop.colors.length);
+                
+                GameStroop.current = {
+                    isMatch: textIdx === colorIdx
+                };
+
+                const wordEl = document.getElementById('stroop-word');
+                wordEl.innerText = GameStroop.colors[textIdx].name;
+                // Reset classes
+                wordEl.className = `text-6xl md:text-8xl font-black tracking-wider transition-all ${GameStroop.colors[colorIdx].class}`;
+            },
+
+            handleAnswer: (isMatch) => {
+                if (isMatch === GameStroop.current.isMatch) {
+                    GameStroop.score++;
+                } else {
+                    GameStroop.score = Math.max(0, GameStroop.score - 1);
+                }
+                document.getElementById('stroop-score').innerText = GameStroop.score;
+                GameStroop.nextRound();
+            },
+
+            finish: () => {
+                clearInterval(GameStroop.timer);
+                document.getElementById('stroop-controls').classList.add('hidden');
+                document.getElementById('stroop-word').classList.add('hidden');
+                
+                const resDiv = document.getElementById('stroop-result');
+                resDiv.classList.remove('hidden');
+                resDiv.classList.add('flex');
+                resDiv.innerHTML = `
+                    <h2 class="text-4xl font-bold text-white">Time's Up!</h2>
+                    <div class="text-6xl font-black text-emerald-400">Score: ${GameStroop.score}</div>
+                    <button onclick="App.saveStat('stroop', ${GameStroop.score})" class="px-6 py-3 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_4px_0_rgb(6,95,70)] active:translate-y-[4px] active:shadow-none">Finish</button>
+                `;
+            }
+        };
+
+        // --- 4. BURST GAME ---
+        const GameBurst = {
+            score: 0,
+            timeLeft: 20,
+            spawnTimer: null,
+            gameTimer: null,
+            targets: [],
+
+            init: () => {
+                GameBurst.score = 0;
+                GameBurst.timeLeft = 20;
+                GameBurst.targets = [];
+                document.getElementById('burst-field').innerHTML = '';
+                document.getElementById('burst-score').innerText = '0';
+                document.getElementById('burst-timer').innerText = '20';
+                document.getElementById('burst-result').classList.remove('flex');
+                document.getElementById('burst-result').classList.add('hidden');
+
+                // Game Loop
+                GameBurst.gameTimer = setInterval(() => {
+                    GameBurst.timeLeft--;
+                    document.getElementById('burst-timer').innerText = GameBurst.timeLeft;
+                    if (GameBurst.timeLeft <= 0) GameBurst.finish();
+                }, 1000);
+
+                // Spawn Loop
+                GameBurst.spawnTimer = setInterval(() => {
+                    if (Math.random() > 0.3) GameBurst.spawnTarget();
+                }, 400);
+            },
+
+            cleanup: () => {
+                clearInterval(GameBurst.gameTimer);
+                clearInterval(GameBurst.spawnTimer);
+            },
+
+            spawnTarget: () => {
+                const id = 't-' + Date.now() + Math.random();
+                const size = 60 + Math.random() * 40;
+                const x = Math.random() * 80 + 10; // 10% to 90%
+                const y = Math.random() * 80 + 10;
+
+                const btn = document.createElement('button');
+                btn.id = id;
+                btn.className = "absolute rounded-full bg-emerald-500 border-4 border-white shadow-lg active:scale-90 transition-transform animate-pop-in";
+                btn.style.left = x + '%';
+                btn.style.top = y + '%';
+                btn.style.width = size + 'px';
+                btn.style.height = size + 'px';
+                btn.style.transform = 'translate(-50%, -50%)';
+                
+                // Touch/Click handlers
+                const hit = (e) => {
+                    e.stopPropagation();
+                    GameBurst.score++;
+                    document.getElementById('burst-score').innerText = GameBurst.score;
+                    btn.remove();
+                };
+                
+                btn.onmousedown = hit;
+                btn.ontouchstart = hit;
+
+                document.getElementById('burst-field').appendChild(btn);
+            },
+
+            finish: () => {
+                GameBurst.cleanup();
+                const resDiv = document.getElementById('burst-result');
+                resDiv.classList.remove('hidden');
+                resDiv.classList.add('flex');
+                resDiv.innerHTML = `
+                     <h2 class="text-4xl font-bold text-white">Done!</h2>
+                    <div class="text-6xl font-black text-emerald-400">${GameBurst.score} Hits</div>
+                    <button onclick="App.saveStat('burst', ${GameBurst.score})" class="px-6 py-3 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_4px_0_rgb(6,95,70)] active:translate-y-[4px] active:shadow-none">Finish</button>
+                `;
+            }
+        };
+
+        // Initialize App on Load
+        window.onload = App.init;
+
+    </script>
+</body>
+</html>
